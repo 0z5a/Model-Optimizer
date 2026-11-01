@@ -709,6 +709,8 @@ class _AutoQuantizeBaseSearcher(BaseSearcher, ABC):
     quantizer_states: dict
     method_name: str | None = None
     method_config_keys: frozenset[str] = frozenset()
+    # Method options that change what a stored score means; saved so a re-solve can honor them.
+    scoring_config_keys: frozenset[str] = frozenset()
 
     quant_grouping_rules = [
         r"^(.*?)\.(q_proj|k_proj|v_proj)$",  # q_proj, k_proj, v_proj for llama like models
@@ -768,6 +770,7 @@ class _AutoQuantizeBaseSearcher(BaseSearcher, ABC):
             "candidate_stats": defaultdict(dict),
             "quantizer_states": {},
             "format_shard": None,
+            "scoring_config": {},
             "best": {"recipe": {}, "constraints": {}, "score": float("inf"), "is_satisfied": False},
         }
 
@@ -1316,7 +1319,14 @@ class _AutoQuantizeBaseSearcher(BaseSearcher, ABC):
                 f"current=({self.config['cost_model']}, {self.config['active_moe_expert_ratio']}). "
                 "Use a different checkpoint path."
             )
+        scoring_config = {key: self.config[key] for key in sorted(self.scoring_config_keys)}
+        if self.candidate_stats and getattr(self, "scoring_config", {}) != scoring_config:
+            raise ValueError(
+                f"Checkpoint scoring options {getattr(self, 'scoring_config', {})} do not match "
+                f"current {scoring_config}. Use a different checkpoint path."
+            )
         self.method = self.method_name
+        self.scoring_config = scoring_config
         self.cost_model = self.config["cost_model"]
         self.cost = self.config["cost"]
         self.active_moe_expert_ratio = self.config["active_moe_expert_ratio"]
@@ -1711,6 +1721,7 @@ def _monotone_scores(raw_scores):
 
 _SHARD_INVARIANT_STATE = (
     "method",
+    "scoring_config",
     "cost_model",
     "cost",
     "active_moe_expert_ratio",
@@ -2181,6 +2192,7 @@ class AutoQuantizeKLDivSearcher(_AutoQuantizeBaseSearcher):
 
     method_name = "kl_div"
     method_config_keys = frozenset({"context"})
+    scoring_config_keys = frozenset({"context"})
 
     @property
     def default_search_config(self):
@@ -2554,6 +2566,7 @@ def _resolve_best_recipe(search_state, constraints, verbose=False):
         "cost_model": searcher.cost_model,
         "cost": searcher.cost,
         "active_moe_expert_ratio": searcher.active_moe_expert_ratio,
+        **search_state.get("scoring_config", {}),
     }
     for key in searcher.default_state_dict:
         if key in search_state and not hasattr(searcher, key):
