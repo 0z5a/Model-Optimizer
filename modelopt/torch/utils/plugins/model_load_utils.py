@@ -1693,10 +1693,14 @@ def _decide_distribution(
         )
     chosen = ep_size == "auto"  # an EP degree no knob or argument set
     # Why the expert-parallel load would refuse this MoE, or None, whatever EP degree is set: its
-    # spec, the transformers it needs, its checkpoint or its plan. An MoE it refuses cannot be
-    # expert-parallel here, so is not refused below for being left whole.
+    # spec, the transformers it needs, its spec's prepare, its checkpoint or its plan. An MoE it
+    # refuses cannot be expert-parallel here, so is not refused below for being left whole.
     refusal = (
-        (_spec_refusal(hf_config.model_type) or _ep_load_refusal(hf_config, ep_plan))
+        (
+            _spec_refusal(hf_config.model_type)
+            or _prepare_refusal(hf_config, ckpt_path, trust_remote_code)
+            or _ep_load_refusal(hf_config, ep_plan)
+        )
         if experts
         else None
     )
@@ -2034,6 +2038,19 @@ def _ep_plan_refusal(ep_plan: dict[str, str]) -> str | None:
             "siblings."
         )
     return None
+
+
+def _prepare_refusal(hf_config, ckpt_path: str, trust_remote_code: bool) -> ValueError | None:
+    """Why the model spec's ``prepare`` would refuse this checkpoint, or ``None``.
+
+    ``prepare`` runs only once the plan is decided expert-parallel, so the decision asks first
+    (``EPSpec.prepare_refusal``): a checkpoint it refuses cannot be expert-parallel here.
+    """
+    ep = _ep_spec(hf_config.model_type)
+    if ep is None or ep.prepare_refusal is None:
+        return None
+    why = ep.prepare_refusal(hf_config, ckpt_path=ckpt_path, trust_remote_code=trust_remote_code)
+    return ValueError(why) if why is not None else None
 
 
 def _ep_load_refusal(hf_config, ep_plan: dict[str, str]) -> Exception | None:
