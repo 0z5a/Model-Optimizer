@@ -38,6 +38,7 @@ import transformers
 import transformers.distributed as hf_distributed
 import transformers.modeling_utils as hf_modeling_utils
 from huggingface_hub import snapshot_download
+from packaging.version import parse
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -53,6 +54,7 @@ from transformers import (
     AutoModelForImageTextToText,
     AutoModelForSeq2SeqLM,
     AutoModelForSpeechSeq2Seq,
+    FineGrainedFP8Config,
     PretrainedConfig,
 )
 from transformers.conversion_mapping import get_model_conversion_mapping
@@ -2203,8 +2205,6 @@ def _patch_finegrained_fp8_dequant(target_dtype=None):
         _FP8_DEQUANT_DTYPE = target_dtype  # keep current even if already patched
     if _FINEGRAINED_FP8_PATCHED:
         return
-    import transformers
-    from packaging.version import parse
     from transformers.integrations import finegrained_fp8 as _fp8
 
     fp8_dtypes = {
@@ -2247,8 +2247,11 @@ def _patch_finegrained_fp8_dequant(target_dtype=None):
         return
 
     # The release's own dequant, for the weights the override leaves to it. Releases without one
-    # (5.5) dequantize inline and never call the override.
+    # (5.5) dequantize inline and never call the override. On a re-imported module it is the method
+    # the earlier copy's override replaced: wrapping that override would cast through its module's
+    # dtype first.
     stock = vars(_fp8.Fp8Dequantize).get("_dequantize_one")
+    stock = getattr(stock, "_modelopt_replaced", stock)
 
     def _dequantize_one(self, quantized, scales, output_dtype=None):
         # Emit the MODEL compute dtype (bf16), NOT the scale dtype. DeepSeek's weight_scale_inv is F32;
@@ -2309,6 +2312,8 @@ def _patch_finegrained_fp8_dequant(target_dtype=None):
         if whole < scale_cols:
             q[..., whole * block_n :].mul_(s[..., whole:])
         return q.to(out_dtype)
+
+    _dequantize_one._modelopt_replaced = stock  # type: ignore[attr-defined]
 
     # --- Fix the routed-expert block-FP8 load corruption (transformers 5.9) ---------------------
     # The FP8 quantizer's update_weight_conversions PREPENDS Fp8Dequantize to each converter's
@@ -2949,8 +2954,6 @@ def load_and_prepare_ep(
     # (compressed-tensors pack-quantized experts, e.g. Kimi, are handled separately by the on-the-fly
     # decompressor plugin; here we only cover the native fp8 case.)
     if quant_method == "fp8":
-        from transformers import FineGrainedFP8Config
-
         # transformers keeps the checkpoint's quantization_config, its weight_block_size included,
         # and takes only the loading attributes (dequantize) from this one.
         from_pretrained_kwargs["quantization_config"] = FineGrainedFP8Config(dequantize=True)
