@@ -2,7 +2,7 @@
 <html lang="en" data-accent-color="green" data-content_root="../">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Changelog - Model Optimizer 0.0.1.dev1+gaae1af55d</title><link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="modelopt API" href="1_modelopt_api.html" /><link rel="prev" title="All GitHub Examples" href="../examples/0_all_examples.html" /><script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Changelog - Model Optimizer 0.0.1.dev1+g6a11db7f3</title><link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="modelopt API" href="1_modelopt_api.html" /><link rel="prev" title="All GitHub Examples" href="../examples/0_all_examples.html" /><script>
     function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
     setColorMode(localStorage._theme||"auto");
   </script><link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=e1a1ceaf" />
@@ -507,7 +507,7 @@ AutoQuantize path and preserve their linear-attention fusion groups during mixed
 </ul>
 <p><strong>Backward Breaking Changes</strong></p>
 <ul class="simple">
-<li><p>Remove the legacy DLA graph-cache and graph-mutation helpers from <code class="docutils literal notranslate"><span class="pre">graph_surgery.utils.graph_utils</span></code>; use ONNXScript IR APIs for new transformations. General graph-surgery utilities remain available.</p></li>
+<li><p>Remove the legacy DLA helpers from <code class="docutils literal notranslate"><span class="pre">graph_surgery.utils.graph_utils</span></code>, including graph-cache and graph-mutation helpers, <code class="docutils literal notranslate"><span class="pre">resolve_reshape_shape</span></code>, and <code class="docutils literal notranslate"><span class="pre">parse_qdq_quantized_dtype_list</span></code>. Update direct imports of removed helpers and use ONNXScript IR APIs for new transformations.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">QDQAutotunerBase.export_onnx(output_path=...)</span></code> now returns <code class="docutils literal notranslate"><span class="pre">None</span></code> instead of serialized bytes. Omit <code class="docutils literal notranslate"><span class="pre">output_path</span></code> to keep the bytes-returning behavior, which remains subject to protobuf size limits.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">export_mcore_gpt_to_hf</span></code> given a Hugging Face Hub model ID no longer writes the tokenizer, processor, generation config or remote-code files. Pass a local directory instead, e.g. from <code class="docutils literal notranslate"><span class="pre">modelopt.torch.export.ensure_local_checkpoint</span></code>.</p></li>
 <li><p>Drop support for Python 3.10, which has reached end-of-life. ModelOpt now requires Python 3.11 or later.</p></li>
